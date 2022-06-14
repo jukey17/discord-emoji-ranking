@@ -103,7 +103,7 @@ class EmojiRanking(Cog, CogHelper):
         self._contains_bot = False
 
     @command()
-    async def emoji_count(self, ctx, *args):
+    async def emoji_ranking(self, ctx, *args):
         await self.execute(ctx, args)
 
     def _parse_args(self, ctx: Context, args: Dict[str, str]):
