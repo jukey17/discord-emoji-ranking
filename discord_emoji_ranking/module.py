@@ -1,7 +1,7 @@
 import datetime
 import logging
 from enum import Enum
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Union
 
 import discord
 from discord.ext.commands import Context, Bot, Cog, command
@@ -75,7 +75,7 @@ def _get_rank_str(rank: int) -> str:
 def _get_before_after_str(
     before: datetime.datetime,
     after: datetime.datetime,
-    owner: Optional[discord.Guild, discord.abc.GuildChannel],
+    owner: Union[discord.Guild, discord.abc.GuildChannel],
     tz: datetime.timezone,
     *fmts: str,
 ) -> (str, str):
