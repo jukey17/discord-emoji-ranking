@@ -51,7 +51,7 @@ class _EmojiCounter:
 
 
 class _Constant(Constant):
-    TIMEZONE_OFFSET = os.environ.get("DISCORD_EMOJI_RANKING_TIMEZONE_OFFSET", 0)
+    TIMEZONE_OFFSET = int(os.environ.get("DISCORD_EMOJI_RANKING_TIMEZONE_OFFSET", 0))
     TZ = datetime.timezone(datetime.timedelta(hours=TIMEZONE_OFFSET))
     DATE_FORMAT_SLASH = "%Y/%m/%d"
     DATE_FORMAT_HYPHEN = "%Y-%m-%d"
