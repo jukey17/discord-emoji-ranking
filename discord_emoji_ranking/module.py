@@ -1,5 +1,6 @@
 import datetime
 import logging
+import os
 from enum import Enum
 from typing import List, Optional, Dict
 
@@ -50,7 +51,8 @@ class _EmojiCounter:
 
 
 class _Constant(Constant):
-    JST = datetime.timezone(datetime.timedelta(hours=9), "JST")
+    TIMEZONE_OFFSET = os.environ.get("DISCORD_EMOJI_RANKING_TIMEZONE_OFFSET", 0)
+    TZ = datetime.timezone(datetime.timedelta(hours=TIMEZONE_OFFSET))
     DATE_FORMAT_SLASH = "%Y/%m/%d"
     DATE_FORMAT_HYPHEN = "%Y-%m-%d"
     DATE_FORMATS = [DATE_FORMAT_SLASH, DATE_FORMAT_HYPHEN]
@@ -90,7 +92,7 @@ class EmojiRanking(Cog, CogHelper):
     def _parse_args(self, ctx: Context, args: Dict[str, str]):
         self._channel_ids = get_list(args, "channel", ",", lambda value: int(value), [])
         self._before, self._after = get_before_after_fmts(
-            ctx, args, *_Constant.DATE_FORMATS, tz=_Constant.JST
+            ctx, args, *_Constant.DATE_FORMATS, tz=_Constant.TZ
         )
         self._order = _SortOrder.parse(args.get("order", ""))
         self._rank = int(args.get("rank", _Constant.DEFAULT_RANK))
@@ -140,7 +142,7 @@ class EmojiRanking(Cog, CogHelper):
         else:
             title = f"Emoji Usage Ranking Top {rank} Worst"
         before_str, after_str = get_corrected_before_after_str(
-            self._before, self._after, ctx.guild, _Constant.JST, *_Constant.DATE_FORMATS
+            self._before, self._after, ctx.guild, _Constant.TZ, *_Constant.DATE_FORMATS
         )
         description = f"{after_str} ~ {before_str}"
         embed = discord.Embed(title=title, description=description)
