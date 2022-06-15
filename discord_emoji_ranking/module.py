@@ -147,8 +147,8 @@ class EmojiRanking(Cog, CogHelper):
         for index, counter in enumerate(sorted_counters):
             name = f"{_get_rank_str(index + 1)} {counter.emoji} Total: {_get_times_str(counter.total_count)}"
             value = (
-                f"In Messages: {_get_times_str(counter.counts[_EmojiCountType.MESSAGE_CONTENT])}"
-                f"Reactions: {_get_times_str(counter.counts[_EmojiCountType.MESSAGE_REACTION])}"
+                f"In Messages: {counter.counts[_EmojiCountType.MESSAGE_CONTENT]} "
+                f"Reactions: {counter.counts[_EmojiCountType.MESSAGE_REACTION]}"
             )
             embed.add_field(name=name, value=value, inline=False)
 
