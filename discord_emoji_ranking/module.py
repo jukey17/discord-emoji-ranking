@@ -1,17 +1,18 @@
 import datetime
 import logging
 from enum import Enum
-from typing import List, Optional, Dict, Union
+from typing import List, Optional, Dict
 
 import discord
 from discord.ext.commands import Context, Bot, Cog, command
-from discord_ext_commands_coghelper import (
-    CogHelper,
-    get_list,
-    get_before_after_fmts,
-    get_bool,
+from discord_ext_commands_coghelper import CogHelper
+from discord_ext_commands_coghelper.utils import (
+    Constant,
     to_utc_naive,
-    try_strftime,
+    get_list,
+    get_bool,
+    get_before_after_fmts,
+    get_corrected_before_after_str,
 )
 
 logger = logging.getLogger(__name__)
@@ -48,7 +49,7 @@ class _EmojiCounter:
         return sum(self.counts.values())
 
 
-class _Constant:
+class _Constant(Constant):
     JST = datetime.timezone(datetime.timedelta(hours=9), "JST")
     DATE_FORMAT_SLASH = "%Y/%m/%d"
     DATE_FORMAT_HYPHEN = "%Y-%m-%d"
@@ -72,30 +73,10 @@ def _get_rank_str(rank: int) -> str:
     return f"{rank}th"
 
 
-def _get_before_after_str(
-    before: datetime.datetime,
-    after: datetime.datetime,
-    owner: Union[discord.Guild, discord.abc.GuildChannel],
-    tz: datetime.timezone,
-    *fmts: str,
-) -> (str, str):
-    if before is None:
-        before = datetime.datetime.now(tz=tz)
-    if after is None:
-        after = owner.created_at.replace(tzinfo=datetime.timezone.utc).astimezone(tz)
-
-    before_str = try_strftime(before, *fmts)
-    after_str = try_strftime(after, *fmts)
-
-    return before_str, after_str
-
-
 class EmojiRanking(Cog, CogHelper):
     def __init__(self, bot: Bot):
         CogHelper.__init__(self, bot)
         self._channel_ids: List[int]
-        self._before_str: Optional[str] = None
-        self._after_str: Optional[str] = None
         self._before: Optional[datetime.datetime] = None
         self._after: Optional[datetime.datetime] = None
         self._order = _SortOrder.ASCENDING
@@ -108,10 +89,8 @@ class EmojiRanking(Cog, CogHelper):
 
     def _parse_args(self, ctx: Context, args: Dict[str, str]):
         self._channel_ids = get_list(args, "channel", ",", lambda value: int(value), [])
-        self._before_str = args.get("before", None)
-        self._after_str = args.get("after", None)
         self._before, self._after = get_before_after_fmts(
-            ctx, args, *_Constant.DATE_FORMATS, tzinfo=_Constant.JST
+            ctx, args, *_Constant.DATE_FORMATS, tz=_Constant.JST
         )
         self._order = _SortOrder.parse(args.get("order", ""))
         self._rank = int(args.get("rank", _Constant.DEFAULT_RANK))
@@ -160,7 +139,7 @@ class EmojiRanking(Cog, CogHelper):
             title = f"Emoji Usage Ranking Top {rank}"
         else:
             title = f"Emoji Usage Ranking Top {rank} Worst"
-        before_str, after_str = _get_before_after_str(
+        before_str, after_str = get_corrected_before_after_str(
             self._before, self._after, ctx.guild, _Constant.JST, *_Constant.DATE_FORMATS
         )
         description = f"{after_str} ~ {before_str}"
