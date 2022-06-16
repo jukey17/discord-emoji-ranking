@@ -39,15 +39,36 @@ class _EmojiCountType(Enum):
 
 class _EmojiCounter:
     def __init__(self, emoji: discord.Emoji):
-        self.emoji = emoji
-        self.counts = {t: 0 for t in _EmojiCountType}
+        self._emoji = emoji
+        self._rank = 0
+        self._counts = {t: 0 for t in _EmojiCountType}
 
     def increment(self, count_type: _EmojiCountType):
-        self.counts[count_type] += 1
+        self._counts[count_type] += 1
 
     @property
-    def total_count(self):
-        return sum(self.counts.values())
+    def emoji(self) -> discord.Emoji:
+        return self._emoji
+
+    @property
+    def rank(self) -> int:
+        return self._rank
+
+    @rank.setter
+    def rank(self, value):
+        self._rank = value
+
+    @property
+    def content_count(self) -> int:
+        return self._counts[_EmojiCountType.MESSAGE_CONTENT]
+
+    @property
+    def reaction_count(self) -> int:
+        return self._counts[_EmojiCountType.MESSAGE_REACTION]
+
+    @property
+    def total_count(self) -> int:
+        return sum(self._counts.values())
 
 
 class _Constant(Constant):
@@ -129,12 +150,8 @@ class EmojiRanking(Cog, CogHelper):
             else:
                 counters = await self.count_emojis(counters, messages)
 
-        # ソートした上で要求された順位までの要素数に切り取る
         rank = max(1, min(self._rank, len(ctx.guild.emojis)))
-        reverse = _SortOrder.reverse(self._order)
-        sorted_counters = sorted(
-            counters, key=lambda c: c.total_count, reverse=reverse
-        )[0:rank]
+        sorted_counters = self.sort_ranking(counters, rank)
 
         # Embed生成
         if self._order == _SortOrder.DESCENDING:
@@ -148,10 +165,7 @@ class EmojiRanking(Cog, CogHelper):
         embed = discord.Embed(title=title, description=description)
         for index, counter in enumerate(sorted_counters):
             name = f"{_get_rank_str(index + 1)} {counter.emoji} Total: {_get_times_str(counter.total_count)}"
-            value = (
-                f"In Messages: {counter.counts[_EmojiCountType.MESSAGE_CONTENT]} "
-                f"Reactions: {counter.counts[_EmojiCountType.MESSAGE_REACTION]}"
-            )
+            value = f"In Messages: {counter.content_count} Reactions: {counter.reaction_count}"
             embed.add_field(name=name, value=value, inline=False)
 
         # 集計結果を送信
@@ -182,6 +196,27 @@ class EmojiRanking(Cog, CogHelper):
                         continue
                     counter.increment(_EmojiCountType.MESSAGE_REACTION)
         return counters
+
+    def sort_ranking(
+        self, counters: List[_EmojiCounter], slice_num: int
+    ) -> List[_EmojiCounter]:
+        # ソートした上で要求された順位までの要素数に切り取る
+        reverse = _SortOrder.reverse(self._order)
+        sorted_counters = sorted(
+            counters, key=lambda c: c.total_count, reverse=reverse
+        )[0:slice_num]
+
+        # 同順位を考慮した順位付け
+        for index, counter in enumerate(sorted_counters):
+            rank = index + 1
+            if index > 0:
+                prev = sorted_counters[index - 1]
+                if prev.total_count == counter.total_count:
+                    rank = prev.rank
+
+            counter.rank = rank
+
+        return sorted_counters
 
 
 def setup(bot: Bot):
