@@ -22,7 +22,7 @@ from discord.ext import commands
 
 DISCORD_BOT_TOKEN='your Discord BOT project token.'
 
-bot = commands.Bot()
+bot = commands.Bot(command_prefix="/")
 bot.load_extension("discord_emoji_ranking")
 bot.run(DISCORD_BOT_TOKEN)
 ```
@@ -44,8 +44,8 @@ export DISCORD_EMOJI_RANKING_TIMEZONE_OFFSET=9
 | param   | description                                                             | default             | required |
 |---------|-------------------------------------------------------------------------|---------------------|----------|
 | channel | Filter channels. (multiple channels can be specified by separating `,`) | None(all channels)  | optional |
-| before  | Retrieve messages before this date.                                     | None(server opened) | optional |
-| after   | Retrieve messages after this date.                                      | None(now)           | optional |
+| before  | Retrieve messages before this date.                                     | None(now)           | optional |
+| after   | Retrieve messages after this date.                                      | None(server opened) | optional |
 | order   | Sort order of ranking. (ascending or descending)                        | ascending           | optional |
 | rank    | Number of rankings displayed. (1-25)                                    | 10                  | optional |
 | bot     | Includes BOT messages/reactions.                                        | False               | optional |
@@ -56,7 +56,8 @@ export DISCORD_EMOJI_RANKING_TIMEZONE_OFFSET=9
 for all channels and all times.
 
 #### `/emoji_ranking channel=000000000000000000 before=2022/01/31 after=2022/01/01`
-in channel(id=000000000000000000), 2022/01/01 to 2022/01/31
+in channel(id=000000000000000000).
+time periods is 2022/01/01 to 2022/01/31.
 
 #### `/emoji_ranking order=5 order=descending`
 for all channels and all times.
