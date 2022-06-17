@@ -163,8 +163,8 @@ class EmojiRanking(Cog, CogHelper):
         )
         description = f"{after_str} ~ {before_str}"
         embed = discord.Embed(title=title, description=description)
-        for index, counter in enumerate(sorted_counters):
-            name = f"{_get_rank_str(index + 1)} {counter.emoji} Total: {_get_times_str(counter.total_count)}"
+        for counter in sorted_counters:
+            name = f"{_get_rank_str(counter.rank)} {counter.emoji} Total: {_get_times_str(counter.total_count)}"
             value = f"In Messages: {counter.content_count} Reactions: {counter.reaction_count}"
             embed.add_field(name=name, value=value, inline=False)
 
