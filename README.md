@@ -10,8 +10,27 @@ Discord BOT to provide usage ranking of custom emoji.
 
 ## Installation
 
+### 1. install library
 ```
 pip isntall discord-emoji-ranking
+```
+
+### 2. into project
+
+```python
+from discord.ext import commands
+
+DISCORD_BOT_TOKEN='your Discord BOT project token.'
+
+bot = commands.Bot()
+bot.load_extension("discord_emoji_ranking")
+bot.run(DISCORD_BOT_TOKEN)
+```
+
+### 3. set environment variables
+```bash
+# when setting JST
+export DISCORD_EMOJI_RANKING_TIMEZONE_OFFSET=9
 ```
 
 ## How to use
