@@ -1,17 +1,19 @@
 import datetime
 import logging
+import os
 from enum import Enum
-from typing import List, Optional, Dict, Union
+from typing import List, Optional, Dict
 
 import discord
 from discord.ext.commands import Context, Bot, Cog, command
-from discord_ext_commands_coghelper import (
-    CogHelper,
-    get_list,
-    get_before_after_fmts,
-    get_bool,
+from discord_ext_commands_coghelper import CogHelper
+from discord_ext_commands_coghelper.utils import (
+    Constant,
     to_utc_naive,
-    try_strftime,
+    get_list,
+    get_bool,
+    get_before_after_fmts,
+    get_corrected_before_after_str,
 )
 
 logger = logging.getLogger(__name__)
@@ -37,19 +39,41 @@ class _EmojiCountType(Enum):
 
 class _EmojiCounter:
     def __init__(self, emoji: discord.Emoji):
-        self.emoji = emoji
-        self.counts = {t: 0 for t in _EmojiCountType}
+        self._emoji = emoji
+        self._rank = 0
+        self._counts = {t: 0 for t in _EmojiCountType}
 
     def increment(self, count_type: _EmojiCountType):
-        self.counts[count_type] += 1
+        self._counts[count_type] += 1
 
     @property
-    def total_count(self):
-        return sum(self.counts.values())
+    def emoji(self) -> discord.Emoji:
+        return self._emoji
+
+    @property
+    def rank(self) -> int:
+        return self._rank
+
+    @rank.setter
+    def rank(self, value):
+        self._rank = value
+
+    @property
+    def content_count(self) -> int:
+        return self._counts[_EmojiCountType.MESSAGE_CONTENT]
+
+    @property
+    def reaction_count(self) -> int:
+        return self._counts[_EmojiCountType.MESSAGE_REACTION]
+
+    @property
+    def total_count(self) -> int:
+        return sum(self._counts.values())
 
 
-class _Constant:
-    JST = datetime.timezone(datetime.timedelta(hours=9), "JST")
+class _Constant(Constant):
+    TIMEZONE_OFFSET = int(os.environ.get("DISCORD_EMOJI_RANKING_TIMEZONE_OFFSET", 0))
+    TZ = datetime.timezone(datetime.timedelta(hours=TIMEZONE_OFFSET))
     DATE_FORMAT_SLASH = "%Y/%m/%d"
     DATE_FORMAT_HYPHEN = "%Y-%m-%d"
     DATE_FORMATS = [DATE_FORMAT_SLASH, DATE_FORMAT_HYPHEN]
@@ -72,30 +96,10 @@ def _get_rank_str(rank: int) -> str:
     return f"{rank}th"
 
 
-def _get_before_after_str(
-    before: datetime.datetime,
-    after: datetime.datetime,
-    owner: Union[discord.Guild, discord.abc.GuildChannel],
-    tz: datetime.timezone,
-    *fmts: str,
-) -> (str, str):
-    if before is None:
-        before = datetime.datetime.now(tz=tz)
-    if after is None:
-        after = owner.created_at.replace(tzinfo=datetime.timezone.utc).astimezone(tz)
-
-    before_str = try_strftime(before, *fmts)
-    after_str = try_strftime(after, *fmts)
-
-    return before_str, after_str
-
-
 class EmojiRanking(Cog, CogHelper):
     def __init__(self, bot: Bot):
         CogHelper.__init__(self, bot)
         self._channel_ids: List[int]
-        self._before_str: Optional[str] = None
-        self._after_str: Optional[str] = None
         self._before: Optional[datetime.datetime] = None
         self._after: Optional[datetime.datetime] = None
         self._order = _SortOrder.ASCENDING
@@ -108,10 +112,8 @@ class EmojiRanking(Cog, CogHelper):
 
     def _parse_args(self, ctx: Context, args: Dict[str, str]):
         self._channel_ids = get_list(args, "channel", ",", lambda value: int(value), [])
-        self._before_str = args.get("before", None)
-        self._after_str = args.get("after", None)
         self._before, self._after = get_before_after_fmts(
-            ctx, args, *_Constant.DATE_FORMATS, tzinfo=_Constant.JST
+            ctx, args, *_Constant.DATE_FORMATS, tz=_Constant.TZ
         )
         self._order = _SortOrder.parse(args.get("order", ""))
         self._rank = int(args.get("rank", _Constant.DEFAULT_RANK))
@@ -148,29 +150,22 @@ class EmojiRanking(Cog, CogHelper):
             else:
                 counters = await self.count_emojis(counters, messages)
 
-        # ソートした上で要求された順位までの要素数に切り取る
         rank = max(1, min(self._rank, len(ctx.guild.emojis)))
-        reverse = _SortOrder.reverse(self._order)
-        sorted_counters = sorted(
-            counters, key=lambda c: c.total_count, reverse=reverse
-        )[0:rank]
+        sorted_counters = self.sort_ranking(counters, rank)
 
         # Embed生成
         if self._order == _SortOrder.DESCENDING:
             title = f"Emoji Usage Ranking Top {rank}"
         else:
             title = f"Emoji Usage Ranking Top {rank} Worst"
-        before_str, after_str = _get_before_after_str(
-            self._before, self._after, ctx.guild, _Constant.JST, *_Constant.DATE_FORMATS
+        before_str, after_str = get_corrected_before_after_str(
+            self._before, self._after, ctx.guild, _Constant.TZ, *_Constant.DATE_FORMATS
         )
         description = f"{after_str} ~ {before_str}"
         embed = discord.Embed(title=title, description=description)
-        for index, counter in enumerate(sorted_counters):
-            name = f"{_get_rank_str(index + 1)} {counter.emoji} Total: {_get_times_str(counter.total_count)}"
-            value = (
-                f"In Messages: {_get_times_str(counter.counts[_EmojiCountType.MESSAGE_CONTENT])}"
-                f"Reactions: {_get_times_str(counter.counts[_EmojiCountType.MESSAGE_REACTION])}"
-            )
+        for counter in sorted_counters:
+            name = f"{_get_rank_str(counter.rank)} {counter.emoji} Total: {_get_times_str(counter.total_count)}"
+            value = f"In Messages: {counter.content_count} Reactions: {counter.reaction_count}"
             embed.add_field(name=name, value=value, inline=False)
 
         # 集計結果を送信
@@ -201,6 +196,27 @@ class EmojiRanking(Cog, CogHelper):
                         continue
                     counter.increment(_EmojiCountType.MESSAGE_REACTION)
         return counters
+
+    def sort_ranking(
+        self, counters: List[_EmojiCounter], slice_num: int
+    ) -> List[_EmojiCounter]:
+        # ソートした上で要求された順位までの要素数に切り取る
+        reverse = _SortOrder.reverse(self._order)
+        sorted_counters = sorted(
+            counters, key=lambda c: c.total_count, reverse=reverse
+        )[0:slice_num]
+
+        # 同順位を考慮した順位付け
+        for index, counter in enumerate(sorted_counters):
+            rank = index + 1
+            if index > 0:
+                prev = sorted_counters[index - 1]
+                if prev.total_count == counter.total_count:
+                    rank = prev.rank
+
+            counter.rank = rank
+
+        return sorted_counters
 
 
 def setup(bot: Bot):
